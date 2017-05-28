@@ -11,5 +11,6 @@
 
 #define DEFAULT_PORT 1337
 #define DEFAULT_QUEUE_LENGTH 1
+#define INITIAL_BUFFER_SIZE 64
 
 #endif /* vars_h */
