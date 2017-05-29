@@ -11,8 +11,10 @@
 
 #include <stdio.h>
 
+
 int start ();
-int display_client_info (struct sockaddr_in *, socklen_t);
-int handle_client (int, struct sockaddr_in *, socklen_t);
+int display_client_info (const struct sockaddr_in *, const socklen_t);
+int handle_client (const int, const struct sockaddr_in *, const socklen_t);
+
 
 #endif /* server_h */

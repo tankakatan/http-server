@@ -13,4 +13,11 @@
 #define DEFAULT_QUEUE_LENGTH 1
 #define INITIAL_BUFFER_SIZE 64
 
+
+const char *http_end = "\r\n\r\n";
+const char *url_path_pattern = "(GET|POST|PUT|DELETE|OPTION)[ ]+((/[a-zA-Z0-9_.-]*?)+)[ ]+HTTP/";
+const char *url_path_format = "(GET|POST|PUT|DELETE|OPTION)[ ]+/%s[ ]+HTTP/";
+const char *file_names[2] = {"page", "hello"};
+
+
 #endif /* vars_h */

@@ -15,7 +15,6 @@
 
 #define BUFFER_MULTIPLIER 2
 
-
 typedef struct {
   
   size_t size;

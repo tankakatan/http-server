@@ -8,13 +8,17 @@
 
 
 #include "buffer.h"
+
 #include <stdlib.h>
+#include <strings.h>
 
 
 void init_buffer (buffer_t *buffer, size_t size) {
   buffer->data = malloc (size);
   buffer->size = size;
   buffer->used = 0;
+
+//  bzero (&buffer->data, size);
 }
 
 
@@ -26,6 +30,7 @@ void extend_buffer (buffer_t *buffer) {
     new_data[i] = buffer->data[i];
   }
   
+//  bzero (&buffer->data, new_size);
   buffer->data = new_data;
   buffer->size = new_size;
 }
