@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		923C6E431EE0BF3600BC5887 /* file_manager.c in Sources */ = {isa = PBXBuildFile; fileRef = 923C6E411EE0BF3600BC5887 /* file_manager.c */; };
 		925B51E31EDA193100F8E8A6 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 925B51E21EDA193100F8E8A6 /* main.c */; };
 		925B51EB1EDA195F00F8E8A6 /* server.c in Sources */ = {isa = PBXBuildFile; fileRef = 925B51E91EDA195F00F8E8A6 /* server.c */; };
 		925B51EF1EDB682300F8E8A6 /* buffer.c in Sources */ = {isa = PBXBuildFile; fileRef = 925B51ED1EDB682300F8E8A6 /* buffer.c */; };
@@ -26,6 +27,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		923C6E3F1EDE1C7E00BC5887 /* 404.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; path = 404.html; sourceTree = "<group>"; };
+		923C6E401EE0B5EF00BC5887 /* page.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; path = page.html; sourceTree = "<group>"; };
+		923C6E411EE0BF3600BC5887 /* file_manager.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = file_manager.c; sourceTree = "<group>"; };
+		923C6E421EE0BF3600BC5887 /* file_manager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = file_manager.h; sourceTree = "<group>"; };
 		925B51DF1EDA193100F8E8A6 /* http server */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "http server"; sourceTree = BUILT_PRODUCTS_DIR; };
 		925B51E21EDA193100F8E8A6 /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
 		925B51E91EDA195F00F8E8A6 /* server.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = server.c; sourceTree = "<group>"; };
@@ -51,6 +56,8 @@
 		925B51D61EDA193100F8E8A6 = {
 			isa = PBXGroup;
 			children = (
+				923C6E3F1EDE1C7E00BC5887 /* 404.html */,
+				923C6E401EE0B5EF00BC5887 /* page.html */,
 				925B51E11EDA193100F8E8A6 /* http server */,
 				925B51E01EDA193100F8E8A6 /* Products */,
 			);
@@ -71,6 +78,8 @@
 				925B51E21EDA193100F8E8A6 /* main.c */,
 				925B51E91EDA195F00F8E8A6 /* server.c */,
 				925B51EA1EDA195F00F8E8A6 /* server.h */,
+				923C6E411EE0BF3600BC5887 /* file_manager.c */,
+				923C6E421EE0BF3600BC5887 /* file_manager.h */,
 				925B51ED1EDB682300F8E8A6 /* buffer.c */,
 				925B51EE1EDB682300F8E8A6 /* buffer.h */,
 				92C0A4751EDCBAC100389188 /* parser.c */,
@@ -138,6 +147,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				925B51EB1EDA195F00F8E8A6 /* server.c in Sources */,
+				923C6E431EE0BF3600BC5887 /* file_manager.c in Sources */,
 				925B51EF1EDB682300F8E8A6 /* buffer.c in Sources */,
 				92C0A4771EDCBAC100389188 /* parser.c in Sources */,
 				925B51E31EDA193100F8E8A6 /* main.c in Sources */,
@@ -239,16 +249,20 @@
 		925B51E71EDA193100F8E8A6 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				DEVELOPMENT_TEAM = 38LG3CG9GX;
+				CODE_SIGN_IDENTITY = "Mac Developer";
+				DEVELOPMENT_TEAM = "";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 			};
 			name = Debug;
 		};
 		925B51E81EDA193100F8E8A6 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				DEVELOPMENT_TEAM = 38LG3CG9GX;
+				CODE_SIGN_IDENTITY = "Mac Developer";
+				DEVELOPMENT_TEAM = "";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 			};
 			name = Release;
 		};

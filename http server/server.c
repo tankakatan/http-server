@@ -11,6 +11,7 @@
 #include "vars.h"
 #include "buffer.h"
 #include "parser.h"
+#include "file_manager.h"
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -129,7 +130,23 @@ int handle_client (const int client_socket, const struct sockaddr_in *client_add
     
     free (pattern);
   }
+  
+  //  char pwd[128];
+  //  printf ("pwd? %s\n", getcwd (pwd, sizeof (pwd)));
+  //  printf ("pwd: %s\n", pwd);
+  
+  
+  buffer_t file_buffer;
+  init_buffer (&file_buffer, INITIAL_BUFFER_SIZE);
+  
+  if (get_file_content (&file_buffer, http_404f) < 0) {
+    perror ("Get file content error");
+    return -1;
+  }
 
+  printf ("File content: %s\n", file_buffer.data);
+  free (file_buffer.data);
+  
   return 0;
 }
 
