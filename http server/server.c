@@ -95,7 +95,6 @@ int handle_client (const int client_socket, const struct sockaddr_in *client_add
   
   size_t bytes_read = 0;
   do {
-    
     bytes_read = recv (client_socket, buffer.data + buffer.used, buffer.size - buffer.used, 0);
   
     if (bytes_read > 0) {
@@ -116,37 +115,75 @@ int handle_client (const int client_socket, const struct sockaddr_in *client_add
           buffer.used, buffer.size, buffer.data);
   
   int file_names_amount = sizeof (file_names) / sizeof (char *);
+  int is_matching = 0;
   for (int i = 0; i < file_names_amount; i++) {
     size_t pattern_size = strlen (url_path_format) - 2 + strlen (file_names[i]);
     char *pattern       = malloc (pattern_size);
     if (sprintf (pattern, url_path_format, file_names[i]) < 0) {
       perror ("File name pattern compiling error");
+      free (buffer.data);
       return -1;
     }
     
-    int is_matching = match_pattern (pattern, buffer.data);
-    printf ("¿Has client requested file name \"%s\"? – %s\n",
-            file_names[i], is_matching ? "Yes" : "No");
-    
+    is_matching = match_pattern (pattern, buffer.data);
+    if (is_matching) {
+      if (send_http_response (client_socket, http_pagef) < 0) {
+        perror ("Send response error");
+        free (buffer.data);
+        return -1;
+      }
+      break;
+    }
     free (pattern);
   }
   
-  //  char pwd[128];
-  //  printf ("pwd? %s\n", getcwd (pwd, sizeof (pwd)));
-  //  printf ("pwd: %s\n", pwd);
+  if (!is_matching) {
+    if (send_http_response (client_socket, http_404f) < 0) {
+      perror ("Send response error");
+      free (buffer.data);
+      return -1;
+    }
+  }
   
+  free (buffer.data);
+  return 0;
+}
+
+
+/*  Send response  */
+
+int send_http_response (const int socket, const char* fname) {
+  buffer_t buffer;
+  init_buffer (&buffer, INITIAL_BUFFER_SIZE);
   
-  buffer_t file_buffer;
-  init_buffer (&file_buffer, INITIAL_BUFFER_SIZE);
-  
-  if (get_file_content (&file_buffer, http_404f) < 0) {
+  if (get_file_content (&buffer, fname) < 0) {
     perror ("Get file content error");
     return -1;
   }
 
-  printf ("File content: %s\n", file_buffer.data);
-  free (file_buffer.data);
+  size_t response_size = buffer.used + strlen (http_headers_format) - 2;
+  char *response = malloc (response_size);
+  if (snprintf (response, response_size, http_headers_format, buffer.data) < 0) {
+    perror ("Response compile error");
+    return -1;
+  }
   
+  printf ("Prepared response (%lu bytes):\n%s\n", response_size, response);
+  
+  ssize_t bytes = 0, sent = 0;
+  do {
+    if ((bytes = send (socket, response + sent, response_size - sent, 0)) < 0) {
+      perror ("Send error");
+      return -1;
+    }
+    
+    if (bytes == 0) { break; }
+    sent += bytes;
+  } while (1);
+  
+  printf ("File %s has been sent successfully.\n\n", fname);
+  free (response);
+  free (buffer.data);
   return 0;
 }
 

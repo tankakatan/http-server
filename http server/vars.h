@@ -20,6 +20,10 @@ const char *url_path_format = "(GET|POST|PUT|DELETE|OPTION)[ ]+/%s[ ]+HTTP/";
 const char *file_names[1] = {"page",};
 const char *http_404f = "404.html";
 const char *http_pagef = "page.html";
+const char *http_headers_format =
+  "HTTP/1.x 200 OK\r\n"
+  "Content-Type: text/html; charset=UTF-8\r\n\r\n"
+  "%s\r\n\r\n";
 
 
 #endif /* vars_h */

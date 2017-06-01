@@ -10,6 +10,11 @@
 
 
 int get_file_content (buffer_t *buffer, const char *fname) {
+  
+  //  char pwd[128];
+  //  printf ("pwd? %s\n", getcwd (pwd, sizeof (pwd)));
+  //  printf ("pwd: %s\n", pwd);
+  
   FILE *file = fopen (fname, "r");
   if (file == NULL) {
     perror ("File open error");
@@ -22,6 +27,7 @@ int get_file_content (buffer_t *buffer, const char *fname) {
     cursor  = buffer->data + buffer->used;
     chars   = (buffer->size - buffer->used) / sizeof (char);
     bytes   = fread (cursor, sizeof (char), chars, file);
+    
 //    printf ("file reading: *cursor: %s, chars: %lu, read: %lu\n", cursor, chars, bytes);
     
     if (bytes <= 0) { break; }
