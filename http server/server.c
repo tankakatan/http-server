@@ -6,7 +6,6 @@
 //  Copyright © 2017 Denis. All rights reserved.
 //
 
-
 #include "server.h"
 #include "vars.h"
 #include "buffer.h"
@@ -23,7 +22,7 @@
 #include <unistd.h>
 
 
-/*  Bind address and port, setup listener, run main loop  */
+/*  Bind address and port, set up listener, run main loop  */
 
 int start () {
   
@@ -85,7 +84,7 @@ int start () {
 }
 
 
-/*  Receive and handle client request, send server response   */
+/*  Receive and handle client request  */
 
 int handle_client (const int client_socket, const struct sockaddr_in *client_addr,
                    const socklen_t client_addr_length) {
@@ -127,7 +126,7 @@ int handle_client (const int client_socket, const struct sockaddr_in *client_add
     
     is_matching = match_pattern (pattern, buffer.data);
     if (is_matching) {
-      if (send_http_response (client_socket, http_pagef) < 0) {
+      if (send_http_response (client_socket, http_page_f) < 0) {
         perror ("Send response error");
         free (buffer.data);
         return -1;
@@ -138,7 +137,7 @@ int handle_client (const int client_socket, const struct sockaddr_in *client_add
   }
   
   if (!is_matching) {
-    if (send_http_response (client_socket, http_404f) < 0) {
+    if (send_http_response (client_socket, http_404_f) < 0) {
       perror ("Send response error");
       free (buffer.data);
       return -1;
