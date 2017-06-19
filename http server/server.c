@@ -35,6 +35,17 @@ int start () {
   
   int server_sock = socket (PF_INET, SOCK_STREAM, 0);
   
+  int reuse = 1;
+  if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) < 0) {
+    perror("setsockopt(SO_REUSEADDR) failed");
+  }
+    
+#ifdef SO_REUSEPORT
+  if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEPORT, (const char*)&reuse, sizeof(reuse)) < 0) {
+    perror("setsockopt(SO_REUSEPORT) failed");
+  }
+#endif
+  
   if (bind (server_sock, (struct sockaddr *)&server, sizeof (server)) < 0) {
     perror ("Bind error");
     close (server_sock);
@@ -50,7 +61,7 @@ int start () {
   while (1) {
     
     struct sockaddr_in client;
-    socklen_t client_addr_len;
+    socklen_t client_addr_len = sizeof (struct sockaddr_in);
     bzero (&client, sizeof (client));
     
     int client_sock = accept (server_sock, (struct sockaddr *)&client, &client_addr_len);
@@ -76,7 +87,7 @@ int start () {
     }
     
     close (client_sock);
-    break;
+//    break;
   }
 
   close (server_sock);
@@ -121,30 +132,33 @@ int handle_client (const int client_socket, const struct sockaddr_in *client_add
     if (sprintf (pattern, url_path_format, file_names[i]) < 0) {
       perror ("File name pattern compiling error");
       free (buffer.data);
+      free (pattern);
       return -1;
     }
     
     is_matching = match_pattern (pattern, buffer.data);
     if (is_matching) {
-      if (send_http_response (client_socket, http_page_f) < 0) {
+      if (send_http_response (client_socket, index_page_f) < 0) {
         perror ("Send response error");
         free (buffer.data);
+        free (pattern);
         return -1;
       }
+      free (buffer.data);
+      free (pattern);
       break;
     }
     free (pattern);
   }
   
   if (!is_matching) {
-    if (send_http_response (client_socket, http_404_f) < 0) {
+    if (send_http_response (client_socket, not_found_page_f) < 0) {
       perror ("Send response error");
       free (buffer.data);
       return -1;
     }
   }
   
-  free (buffer.data);
   return 0;
 }
 
@@ -157,13 +171,29 @@ int send_http_response (const int socket, const char* fname) {
   
   if (get_file_content (&buffer, fname) < 0) {
     perror ("Get file content error");
+    free (buffer.data);
     return -1;
   }
+  
+  size_t buffer_used = buffer.used;
+  size_t buffer_used_digits = 0;
+  while (buffer_used != 0) {
+    buffer_used /= 10;
+    ++buffer_used_digits;
+  }
 
-  size_t response_size = buffer.used + strlen (http_headers_format) - 2;
+  size_t format_chars = 4;
+  size_t response_size = buffer.used + strlen (http_headers_format) - format_chars + buffer_used_digits;
   char *response = malloc (response_size);
-  if (snprintf (response, response_size, http_headers_format, buffer.data) < 0) {
+  
+  printf ("Total response length is: %lu + %lu + %lu - %lu = %lu\n",
+          strlen(buffer.data), strlen(http_headers_format), buffer_used_digits,
+          format_chars, response_size);
+  
+  if (snprintf (response, response_size, http_headers_format, buffer.used, buffer.data) < 0) {
     perror ("Response compile error");
+    free (buffer.data);
+    free (response);
     return -1;
   }
   
@@ -173,6 +203,8 @@ int send_http_response (const int socket, const char* fname) {
   do {
     if ((bytes = send (socket, response + sent, response_size - sent, 0)) < 0) {
       perror ("Send error");
+      free (buffer.data);
+      free (response);
       return -1;
     }
     
@@ -197,11 +229,13 @@ int display_client_info (const struct sockaddr_in *client, const socklen_t clien
     char *client_address  = inet_ntoa (client->sin_addr);
     int client_port       = ntohs (client->sin_port);
     printf ("%sDetected connection with %s:%d\n\n", timestring, client_address, client_port);
-    
+//    free (client_address);
+
   } else {
     printf ("%sDetected connection with undefined client address length %d"
             "(should be %lu)\n\n", timestring, client_addr_length, sizeof (struct sockaddr_in));
   }
 
+//  free (timestring);
   return 0;
 }

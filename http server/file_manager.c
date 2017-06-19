@@ -7,7 +7,9 @@
 //
 
 #include "file_manager.h"
+#include "vars.h"
 
+#include <strings.h>
 
 int get_file_content (buffer_t *buffer, const char *fname) {
   
@@ -24,17 +26,21 @@ int get_file_content (buffer_t *buffer, const char *fname) {
   char *cursor = NULL;
   size_t bytes = 0, chars = 0;
   do {
-    cursor  = buffer->data + buffer->used;
     chars   = (buffer->size - buffer->used) / sizeof (char);
+    if (chars < BUFFER_THRESHOLD) {
+      extend_buffer (buffer);
+      chars = (buffer->size - buffer->used) / sizeof (char);
+    }
+    cursor  = buffer->data + buffer->used;
     bytes   = fread (cursor, sizeof (char), chars, file);
     
 //    printf ("file reading: *cursor: %s, chars: %lu, read: %lu\n", cursor, chars, bytes);
     
-    if (bytes <= 0) { break; }
-    buffer->used += bytes;
-    if (buffer->size <= buffer->used) {
-      extend_buffer (buffer);
+    if (bytes <= 0) {
+      break;
     }
+    buffer->used += bytes;
+
   } while (1);
   
   fclose (file);

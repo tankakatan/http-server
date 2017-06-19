@@ -9,7 +9,7 @@
 
 #include <stdio.h>
 #include "server.h"
-
+#include <strings.h>
 
 int main(int argc, const char * argv[]) {
   return start ();

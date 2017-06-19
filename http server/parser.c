@@ -14,7 +14,7 @@
 
 
 int match_pattern (const char *pattern, const char *string) {
-  regex_t regex;
+  regex_t regex = {};
   int match = 0;
   if (regcomp (&regex, pattern, REG_EXTENDED) != 0) {
     perror ("Regex compile error");
