@@ -22,6 +22,7 @@ extern const char *file_names[1];
 extern const char *not_found_page_f;
 extern const char *index_page_f;
 extern const char *http_headers_format;
+extern const char *http_headers;
 
 
 #endif /* vars_h */

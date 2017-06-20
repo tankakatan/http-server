@@ -16,5 +16,6 @@ int start ();
 int display_client_info (const struct sockaddr_in *, const socklen_t);
 int handle_client (const int, const struct sockaddr_in *, const socklen_t);
 int send_http_response (const int, const char *);
+int read_and_send (const int, const char *);
 
 #endif /* server_h */

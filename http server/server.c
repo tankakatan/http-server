@@ -138,7 +138,7 @@ int handle_client (const int client_socket, const struct sockaddr_in *client_add
     
     is_matching = match_pattern (pattern, buffer.data);
     if (is_matching) {
-      if (send_http_response (client_socket, index_page_f) < 0) {
+      if (read_and_send (client_socket, index_page_f) < 0) {
         perror ("Send response error");
         free (buffer.data);
         free (pattern);
@@ -152,7 +152,7 @@ int handle_client (const int client_socket, const struct sockaddr_in *client_add
   }
   
   if (!is_matching) {
-    if (send_http_response (client_socket, not_found_page_f) < 0) {
+    if (read_and_send (client_socket, not_found_page_f) < 0) {
       perror ("Send response error");
       free (buffer.data);
       return -1;
@@ -218,6 +218,78 @@ int send_http_response (const int socket, const char* fname) {
   return 0;
 }
 
+
+/*  Send response 2  */
+
+int read_and_send (const int socket, const char* fname) {
+  
+  FILE *file = fopen (fname, "r");
+  if (file == NULL) {
+    perror ("File open error");
+    return -1;
+  }
+  
+  buffer_t buffer;
+  init_buffer (&buffer, INITIAL_BUFFER_SIZE);
+  
+  size_t headers_length = strlen (http_headers);
+  while (buffer.size < headers_length) {
+    extend_buffer (&buffer);
+  }
+  
+  memcpy (buffer.data, http_headers, headers_length);
+  buffer.used = headers_length;
+  
+  char *cursor = NULL;
+  long
+    chars_sent = 0;
+  
+  size_t
+    chars_read = 0,
+    bytes_read = 0,
+    bytes_sent = 0,
+    reading_complete = 0,
+    sending_complete = 0;
+  
+  do {
+    if (!reading_complete) {
+      chars_read = (buffer.size - buffer.used) / sizeof (char);
+      if (chars_read < BUFFER_THRESHOLD) {
+        extend_buffer (&buffer);
+        chars_read = (buffer.size - buffer.used) / sizeof (char);
+      }
+      
+      cursor      = buffer.data + buffer.used;
+      bytes_read  = fread (cursor, sizeof (char), chars_read, file);
+      
+      if (bytes_read <= 0) { reading_complete = 1; } else {
+        printf ("Data read: *cursor: %s, chars: %lu, read: %lu\n\n", cursor, chars_read, bytes_read);
+        buffer.used += bytes_read;
+      }
+    }
+    
+    if (!sending_complete && (buffer.used > 0)) {
+      if ((chars_sent = send (socket, buffer.data + bytes_sent, buffer.used - bytes_sent, 0)) < 0) {
+        perror ("Send error");
+        free (buffer.data);
+        fclose (file);
+        return -1;
+      }
+      if (chars_sent == 0) { sending_complete = 1; } else {
+        bytes_sent += chars_sent;
+        printf ("Data sent: *cursor: %s, fraction: %lu, total: %lu\n\n",
+                buffer.data + bytes_sent - chars_sent, chars_sent, bytes_sent);
+      }
+    }
+    
+  } while ((reading_complete == 0) &&
+           (sending_complete == 0));
+  
+  free (buffer.data);
+  fclose (file);
+  
+  return 0;
+}
 
 /*  Display client ip address and destination port  */
 

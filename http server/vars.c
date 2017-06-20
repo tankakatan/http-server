@@ -10,15 +10,20 @@
 #include <stdio.h>
 #include "vars.h"
 
-#define INDEX_PAGE "index\\.html"
+#define INDEX_PAGE "index.html"
+#define WRONG_PAGE "404.html"
 
 const char *http_end            = "\r\n\r\n";
 const char *url_path_pattern    = "(GET|POST|PUT|DELETE|OPTION)[ ]+((/[a-zA-Z0-9_.-]*?)+)[ ]+HTTP/";
 const char *url_path_format     = "(GET|POST|PUT|DELETE|OPTION)[ ]+/%s[ ]+HTTP/";
-const char *not_found_page_f    = "404.html";
+const char *not_found_page_f    = WRONG_PAGE;
 const char *index_page_f        = INDEX_PAGE;
 const char *file_names[1]       = { INDEX_PAGE };
 const char *http_headers_format = "HTTP/1.1 200 OK\r\n"
   "Content-Type: text/html; charset=UTF-8\r\n"
   "Content-Length: %d\r\n\r\n"
   "%s\r\n\r\n";
+
+const char *http_headers = "HTTP/1.1 200 OK\r\n"
+  "Content-Type: text/html; charset=UTF-8\r\n\r\n";
+

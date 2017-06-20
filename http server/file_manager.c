@@ -9,13 +9,14 @@
 #include "file_manager.h"
 #include "vars.h"
 
+#include <unistd.h>
 #include <strings.h>
 
 int get_file_content (buffer_t *buffer, const char *fname) {
   
-  //  char pwd[128];
-  //  printf ("pwd? %s\n", getcwd (pwd, sizeof (pwd)));
-  //  printf ("pwd: %s\n", pwd);
+//  char pwd[128];
+//  printf ("pwd? %s\n", getcwd (pwd, sizeof (pwd)));
+//  printf ("pwd: %s %s\n", pwd, fname);
   
   FILE *file = fopen (fname, "r");
   if (file == NULL) {
