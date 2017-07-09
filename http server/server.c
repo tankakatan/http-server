@@ -56,7 +56,7 @@ int start () {
   }
   
   subscribe_to_signals ();
-  
+  printf ("Starting main loop on pid %d\n", getpid ());
   while (1) {
     
     struct sockaddr_in client;
@@ -64,7 +64,6 @@ int start () {
     bzero (&client, sizeof (client));
     
     int client_sock = 0;
-    printf ("Accepting new connection %d\n\n", client_sock);
     if ((client_sock = accept (server_sock, (struct sockaddr *)&client, &client_addr_len)) <= 0) {
       perror ("Accept error");
       close (client_sock);
@@ -75,7 +74,9 @@ int start () {
     if ((child_process = fork ()) == 0) {
       
       int exit_status = run_client_process (client_sock, &client, client_addr_len);
-      printf ("Closing connection %d\n\n", client_sock);
+      printf ("Closing connection %d\n"
+              "Exiting child process %d\n", client_sock, getpid ());
+
       close (client_sock);
       exit (exit_status);
       
@@ -85,7 +86,7 @@ int start () {
       break;
     }
     
-    printf ("Awaiting for a new connection on %d\n", getpid ());
+    printf ("Main loop is restarting on pid %d\n", getpid ());
   }
 
   close (server_sock);
@@ -96,22 +97,25 @@ int start () {
 /*  Subscribe to system signals   */
 
 void subscribe_to_signals () {
-  printf ("Setting child signal handler\n");
   
-  struct sigaction action;
-  bzero (&action, sizeof (struct sigaction));
-  action.sa_flags = 0;
-  action.sa_sigaction = &child_status_did_change;
-  action.sa_mask = SA_NODEFER;  // If several children will stop in one time
-  sigaction (SIGCHLD, &action, 0);
-  sigaction (SIGINT, &action, 0);
+  struct sigaction child_handler;
+  bzero (&child_handler, sizeof (struct sigaction));
+  child_handler.sa_flags = SA_NOCLDSTOP | SA_RESTART;
+  child_handler.sa_handler = &on_child_did_stop;
+//  action.sa_mask = SA_NODEFER;  // If several children will send signal at one time
+  sigaction (SIGCHLD, &child_handler, 0);
+  
+  struct sigaction interruption_handler;
+  memset (&interruption_handler, 0, sizeof (struct sigaction));
+  interruption_handler.sa_handler = &on_app_interrupted;
+  sigaction (SIGINT, &interruption_handler, 0);
 }
 
 
 /*  Run client handling process   */
 
 int run_client_process (int client_sock, struct sockaddr_in *client, const socklen_t client_addr_len) {
-  printf ("Handling client in a separate process %d:\n\n", getpid ());
+  printf ("Handling client in a separate process %d:\n", getpid ());
   
   if (display_client_info (client, client_addr_len) < 0) {
     perror ("Display client info error");
@@ -123,34 +127,33 @@ int run_client_process (int client_sock, struct sockaddr_in *client, const sockl
     return EXIT_FAILURE;
   }
   
-  printf("The client was successfully handled\n\n");
+  printf("The client was successfully handled\n");
   return EXIT_SUCCESS;
 }
 
 
 /*  Handle system signals  */
 
-void child_status_did_change (int signal, struct __siginfo *signal_info, void *something) {
-  subscribe_to_signals ();
-  switch (signal) {
-    case SIGCHLD: {
-      int returned_value = 0;
-      while (wait (&returned_value) > 0) {
-        printf ("%d: Awaited value is returned %d\n", getpid (), returned_value);
-      };
-      break;
-    }
-
-    case SIGINT: {
-      printf ("Bye!\n");
-      exit (EXIT_SUCCESS);
-    }
-      
-    default: {
-      printf ("Received signal %d\n\n", signal);
-      break;
-    }
+void on_child_did_stop (int signal) {
+  if (signal != SIGCHLD) {
+    printf ("Incorrect signal %d received at on_child_did_exit\n\n", signal);
+    return;
   }
+  
+  int returned_value = 0;
+  wait (&returned_value);
+  printf ("Child process did exit with code %d\n\n", returned_value);
+}
+
+
+void on_app_interrupted (int signal) {
+  if (signal != SIGINT) {
+    printf ("Incorrect signal %d received at on_app_interrupted\n\n", signal);
+    return;
+  }
+  
+  printf ("Bye!\n");
+  exit (EXIT_SUCCESS);
 }
 
 
@@ -359,11 +362,11 @@ int display_client_info (const struct sockaddr_in *client, const socklen_t clien
   if (client_addr_length == sizeof (struct sockaddr_in)) {
     char *client_address  = inet_ntoa (client->sin_addr);
     int client_port       = ntohs (client->sin_port);
-    printf ("%sDetected connection with %s:%d\n\n", timestring, client_address, client_port);
+    printf ("%sDetected request from %s:%d\n\n", timestring, client_address, client_port);
 //    free (client_address);
 
   } else {
-    printf ("%sDetected connection with undefined client address length %d"
+    printf ("%sDetected request from undefined client address length %d"
             "(should be %lu)\n\n", timestring, client_addr_length, sizeof (struct sockaddr_in));
   }
 
