@@ -13,6 +13,7 @@
 
 
 int start ();
+void subscribe_to_signals ();
 int run_client_process (int, struct sockaddr_in *, const socklen_t);
 int display_client_info (const struct sockaddr_in *, const socklen_t);
 int handle_client (const int, const struct sockaddr_in *, const socklen_t);

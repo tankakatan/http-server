@@ -55,15 +55,7 @@ int start () {
     abort ();
   }
   
-  printf ("Setting child signal handler\n");
-  
-  struct sigaction action;
-  bzero (&action, sizeof (struct sigaction));
-  action.sa_flags = 0;
-  action.sa_sigaction = &child_status_did_change;
-  action.sa_mask = SA_NODEFER;  // If several children will stop in one time
-  sigaction (SIGCHLD, &action, 0);
-  sigaction (SIGINT, &action, 0);
+  subscribe_to_signals ();
   
   while (1) {
     
@@ -71,8 +63,9 @@ int start () {
     socklen_t client_addr_len = sizeof (struct sockaddr_in);
     bzero (&client, sizeof (client));
     
-    int client_sock = accept (server_sock, (struct sockaddr *)&client, &client_addr_len);
-    if (client_sock <= 0) {
+    int client_sock = 0;
+    printf ("Accepting new connection %d\n\n", client_sock);
+    if ((client_sock = accept (server_sock, (struct sockaddr *)&client, &client_addr_len)) <= 0) {
       perror ("Accept error");
       close (client_sock);
       break;
@@ -82,6 +75,7 @@ int start () {
     if ((child_process = fork ()) == 0) {
       
       int exit_status = run_client_process (client_sock, &client, client_addr_len);
+      printf ("Closing connection %d\n\n", client_sock);
       close (client_sock);
       exit (exit_status);
       
@@ -91,7 +85,7 @@ int start () {
       break;
     }
     
-    printf ("Awaiting for a new connection\n");
+    printf ("Awaiting for a new connection on %d\n", getpid ());
   }
 
   close (server_sock);
@@ -99,10 +93,25 @@ int start () {
 }
 
 
+/*  Subscribe to system signals   */
+
+void subscribe_to_signals () {
+  printf ("Setting child signal handler\n");
+  
+  struct sigaction action;
+  bzero (&action, sizeof (struct sigaction));
+  action.sa_flags = 0;
+  action.sa_sigaction = &child_status_did_change;
+  action.sa_mask = SA_NODEFER;  // If several children will stop in one time
+  sigaction (SIGCHLD, &action, 0);
+  sigaction (SIGINT, &action, 0);
+}
+
+
 /*  Run client handling process   */
 
 int run_client_process (int client_sock, struct sockaddr_in *client, const socklen_t client_addr_len) {
-  printf ("Handling client in a separate process:\n\n");
+  printf ("Handling client in a separate process %d:\n\n", getpid ());
   
   if (display_client_info (client, client_addr_len) < 0) {
     perror ("Display client info error");
@@ -122,11 +131,12 @@ int run_client_process (int client_sock, struct sockaddr_in *client, const sockl
 /*  Handle system signals  */
 
 void child_status_did_change (int signal, struct __siginfo *signal_info, void *something) {
+  subscribe_to_signals ();
   switch (signal) {
     case SIGCHLD: {
       int returned_value = 0;
       while (wait (&returned_value) > 0) {
-        printf ("Awaited value is returned %d\n", returned_value);
+        printf ("%d: Awaited value is returned %d\n", getpid (), returned_value);
       };
       break;
     }
