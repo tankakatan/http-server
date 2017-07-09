@@ -20,6 +20,7 @@
 #include <arpa/inet.h>
 #include <time.h>
 #include <unistd.h>
+#include <signal.h>
 
 
 /*  Bind address and port, set up listener, run main loop  */
@@ -35,13 +36,9 @@ int start () {
   
   int server_sock = socket (PF_INET, SOCK_STREAM, 0);
   
-  int reuse = 1;
-  if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) < 0) {
-    perror("setsockopt(SO_REUSEADDR) failed");
-  }
-    
 #ifdef SO_REUSEPORT
-  if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEPORT, (const char*)&reuse, sizeof(reuse)) < 0) {
+  int reuse = 1;
+  if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEPORT, (const char*)&reuse, sizeof (reuse)) < 0) {
     perror("setsockopt(SO_REUSEPORT) failed");
   }
 #endif
@@ -58,6 +55,16 @@ int start () {
     abort ();
   }
   
+  printf ("Setting child signal handler\n");
+  
+  struct sigaction action;
+  bzero (&action, sizeof (struct sigaction));
+  action.sa_flags = 0;
+  action.sa_sigaction = &child_status_did_change;
+  action.sa_mask = SA_NODEFER;  // If several children will stop in one time
+  sigaction (SIGCHLD, &action, 0);
+  sigaction (SIGINT, &action, 0);
+  
   while (1) {
     
     struct sockaddr_in client;
@@ -68,30 +75,72 @@ int start () {
     if (client_sock <= 0) {
       perror ("Accept error");
       close (client_sock);
-      close (server_sock);
-      abort ();
+      break;
     }
     
-    if (display_client_info (&client, client_addr_len) < 0) {
-      perror ("Display client info error");
+    int child_process;
+    if ((child_process = fork ()) == 0) {
+      
+      int exit_status = run_client_process (client_sock, &client, client_addr_len);
       close (client_sock);
-      close (server_sock);
-      abort ();
-    }
-    
-    if (handle_client (client_sock, &client, client_addr_len) < 0) {
-      perror ("Handle client error");
+      exit (exit_status);
+      
+    } else if (child_process < 0) {
+      perror ("Fork error:");
       close (client_sock);
-      close (server_sock);
-      abort ();
+      break;
     }
     
-    close (client_sock);
-//    break;
+    printf ("Awaiting for a new connection\n");
   }
 
   close (server_sock);
-  return 0;
+  abort ();
+}
+
+
+/*  Run client handling process   */
+
+int run_client_process (int client_sock, struct sockaddr_in *client, const socklen_t client_addr_len) {
+  printf ("Handling client in a separate process:\n\n");
+  
+  if (display_client_info (client, client_addr_len) < 0) {
+    perror ("Display client info error");
+    return EXIT_FAILURE;
+  }
+  
+  if (handle_client (client_sock, client, client_addr_len) < 0) {
+    perror ("Handle client error");
+    return EXIT_FAILURE;
+  }
+  
+  printf("The client was successfully handled\n\n");
+  return EXIT_SUCCESS;
+}
+
+
+/*  Handle system signals  */
+
+void child_status_did_change (int signal, struct __siginfo *signal_info, void *something) {
+  switch (signal) {
+    case SIGCHLD: {
+      int returned_value = 0;
+      while (wait (&returned_value) > 0) {
+        printf ("Awaited value is returned %d\n", returned_value);
+      };
+      break;
+    }
+
+    case SIGINT: {
+      printf ("Bye!\n");
+      exit (EXIT_SUCCESS);
+    }
+      
+    default: {
+      printf ("Received signal %d\n\n", signal);
+      break;
+    }
+  }
 }
 
 
@@ -263,7 +312,7 @@ int read_and_send (const int socket, const char* fname) {
       bytes_read  = fread (cursor, sizeof (char), chars_read, file);
       
       if (bytes_read <= 0) { reading_complete = 1; } else {
-        printf ("Data read: *cursor: %s, chars: %lu, read: %lu\n\n", cursor, chars_read, bytes_read);
+//        printf ("Data read: *cursor: %s, chars: %lu, read: %lu\n\n", cursor, chars_read, bytes_read);
         buffer.used += bytes_read;
       }
     }
@@ -277,8 +326,8 @@ int read_and_send (const int socket, const char* fname) {
       }
       if (chars_sent == 0) { sending_complete = 1; } else {
         bytes_sent += chars_sent;
-        printf ("Data sent: *cursor: %s, fraction: %lu, total: %lu\n\n",
-                buffer.data + bytes_sent - chars_sent, chars_sent, bytes_sent);
+//        printf ("Data sent: *cursor: %s, fraction: %lu, total: %lu\n\n",
+//                buffer.data + bytes_sent - chars_sent, chars_sent, bytes_sent);
       }
     }
     
