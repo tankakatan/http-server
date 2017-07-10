@@ -86,6 +86,9 @@ int start () {
       break;
     }
     
+    close (client_sock);  //  Important! The client socket descriptor has been copied to a child process.
+                          //  The original one should be closed by parent otherwise it will block client.
+    
     printf ("Main loop is restarting on pid %d\n", getpid ());
   }
 
@@ -347,6 +350,7 @@ int read_and_send (const int socket, const char* fname) {
   } while ((reading_complete == 0) &&
            (sending_complete == 0));
   
+  printf ("Data \"%s\" has been successfully sent to client %d\n", buffer.data, socket);
   free (buffer.data);
   fclose (file);
   
