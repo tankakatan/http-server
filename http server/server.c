@@ -21,6 +21,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <signal.h>
+#include <pthread.h>
 
 
 /*  Bind address and port, set up listener, run main loop  */
@@ -58,7 +59,7 @@ int start () {
   }
   
   subscribe_to_signals ();
-  printf ("Starting main loop on pid %d\n", getpid ());
+  printf ("Starting main loop on main thread\n");
   while (!app_should_stop) {
     
     struct sockaddr_in client;
@@ -74,26 +75,19 @@ int start () {
       break;
     }
     
-    int child_process;
-    if ((child_process = fork ()) == 0) {
-      
-      int exit_status = run_client_process (client_sock, &client, client_addr_len);
-      printf ("Closing connection %d\n"
-              "Exiting child process %d\n", client_sock, getpid ());
-
-      close (client_sock);
-      exit (exit_status);
-      
-    } else if (child_process < 0) {
-      perror ("Fork error:");
+    client_config_t client_config;
+    client_config.socket_descriptor = client_sock;
+    client_config.address = &client;
+    client_config.address_length = client_addr_len;
+    pthread_t child_thread;
+ 
+    if (pthread_create (&child_thread, NULL, (void *(*)(void *))&run_client_process, &client_config) != 0) {
+      perror ("Pthread error");
       close (client_sock);
       break;
     }
     
-    close (client_sock);  //  Important! The client socket descriptor has been copied to a child process.
-                          //  The original one should be closed by parent otherwise it will block client.
-    
-    printf ("Main loop is restarting on pid %d\n", getpid ());
+    printf ("Main loop is restarting on main thread\n");
   }
 
   close (server_sock);
@@ -107,14 +101,6 @@ int start () {
 /*  Subscribe to system signals   */
 
 void subscribe_to_signals () {
-  
-  struct sigaction child_handler;
-  bzero (&child_handler, sizeof (struct sigaction));
-  child_handler.sa_flags = SA_NOCLDSTOP | SA_RESTART;
-  child_handler.sa_handler = &on_child_did_stop;
-  child_handler.sa_mask = SA_NODEFER;  // If several children will send signal at one time
-  sigaction (SIGCHLD, &child_handler, 0);
-  
   struct sigaction interruption_handler;
   memset (&interruption_handler, 0, sizeof (struct sigaction));
   interruption_handler.sa_handler = &on_app_interrupted;
@@ -124,37 +110,25 @@ void subscribe_to_signals () {
 
 /*  Run client handling process   */
 
-int run_client_process (int client_sock, struct sockaddr_in *client, const socklen_t client_addr_len) {
-  printf ("Handling client in a separate process %d:\n", getpid ());
+void *run_client_process (client_config_t *config) {
+  printf ("Handling client in a separate thread\n");
   
-  if (display_client_info (client, client_addr_len) < 0) {
+  if (display_client_info (config->address, config->address_length) < 0) {
     perror ("Display client info error");
-    return EXIT_FAILURE;
+    return NULL;
   }
   
-  if (handle_client (client_sock, client, client_addr_len) < 0) {
+  if (handle_client (config->socket_descriptor, config->address, config->address_length) < 0) {
     perror ("Handle client error");
-    return EXIT_FAILURE;
+    return NULL;
   }
   
   printf("The client was successfully handled\n");
-  return EXIT_SUCCESS;
+  return NULL;
 }
 
 
 /*  Handle system signals  */
-
-void on_child_did_stop (int signal) {
-  if (signal != SIGCHLD) {
-    printf ("Incorrect signal %d received at on_child_did_exit\n\n", signal);
-    return;
-  }
-  
-  int returned_value = 0;
-  wait (&returned_value);
-  printf ("Child process did exit with code %d\n\n", returned_value);
-}
-
 
 void on_app_interrupted (int signal) {
   if (signal != SIGINT) {
