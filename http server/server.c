@@ -25,6 +25,8 @@
 
 /*  Bind address and port, set up listener, run main loop  */
 
+int app_should_stop = 0;
+
 int start () {
   
   struct sockaddr_in server;
@@ -57,7 +59,7 @@ int start () {
   
   subscribe_to_signals ();
   printf ("Starting main loop on pid %d\n", getpid ());
-  while (1) {
+  while (!app_should_stop) {
     
     struct sockaddr_in client;
     socklen_t client_addr_len = sizeof (struct sockaddr_in);
@@ -65,7 +67,9 @@ int start () {
     
     int client_sock = 0;
     if ((client_sock = accept (server_sock, (struct sockaddr *)&client, &client_addr_len)) <= 0) {
-      perror ("Accept error");
+      if (!app_should_stop) {
+        perror ("Accept error");
+      }
       close (client_sock);
       break;
     }
@@ -93,7 +97,10 @@ int start () {
   }
 
   close (server_sock);
-  abort ();
+  if (!app_should_stop) { abort (); } else {
+    printf ("\nGood Bye!\n");
+    return 0;
+  }
 }
 
 
@@ -105,7 +112,7 @@ void subscribe_to_signals () {
   bzero (&child_handler, sizeof (struct sigaction));
   child_handler.sa_flags = SA_NOCLDSTOP | SA_RESTART;
   child_handler.sa_handler = &on_child_did_stop;
-//  action.sa_mask = SA_NODEFER;  // If several children will send signal at one time
+  child_handler.sa_mask = SA_NODEFER;  // If several children will send signal at one time
   sigaction (SIGCHLD, &child_handler, 0);
   
   struct sigaction interruption_handler;
@@ -155,8 +162,7 @@ void on_app_interrupted (int signal) {
     return;
   }
   
-  printf ("Bye!\n");
-  exit (EXIT_SUCCESS);
+  app_should_stop = 1;
 }
 
 
