@@ -77,7 +77,7 @@ int start () {
     
     client_config_t client_config;
     client_config.socket_descriptor = client_sock;
-    client_config.address = &client;
+    memcpy (client_config.address, &client, sizeof (struct sockaddr_in));
     client_config.address_length = client_addr_len;
     pthread_t child_thread;
  
@@ -110,19 +110,23 @@ void subscribe_to_signals () {
 
 /*  Run client handling process   */
 
-void *run_client_process (client_config_t *config) {
-  printf ("Handling client in a separate thread\n");
+void *run_client_process (client_config_t *incoming_config) {
   
-  if (display_client_info (config->address, config->address_length) < 0) {
+  printf ("Handling client in a separate thread\n");
+  client_config_t config;
+  memcpy (&config, incoming_config, sizeof (client_config_t));
+  
+  if (display_client_info (config.address, config.address_length) < 0) {
     perror ("Display client info error");
     return NULL;
   }
   
-  if (handle_client (config->socket_descriptor, config->address, config->address_length) < 0) {
+  if (handle_client (config.socket_descriptor, config.address, config.address_length) < 0) {
     perror ("Handle client error");
     return NULL;
   }
   
+  close (config.socket_descriptor);
   printf("The client was successfully handled\n");
   return NULL;
 }
@@ -330,7 +334,7 @@ int read_and_send (const int socket, const char* fname) {
   } while ((reading_complete == 0) &&
            (sending_complete == 0));
   
-  printf ("Data \"%s\" has been successfully sent to client %d\n", buffer.data, socket);
+  printf ("Data {\n%s\n} has been successfully sent to client %d\n", buffer.data, socket);
   free (buffer.data);
   fclose (file);
   
