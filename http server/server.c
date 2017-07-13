@@ -114,7 +114,9 @@ void *run_client_process (client_config_t *incoming_config) {
   
   printf ("Handling client in a separate thread\n");
   client_config_t config;
-  memcpy (&config, incoming_config, sizeof (client_config_t));
+  memcpy (&config, incoming_config, sizeof (client_config_t));  // Incoming client config is a shared resource that is
+                                                                // going to be reused on the main thread. Hence it should be
+                                                                // copied and kept till a working thread completes its work.
   
   if (display_client_info (config.address, config.address_length) < 0) {
     perror ("Display client info error");
