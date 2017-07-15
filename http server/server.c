@@ -77,6 +77,9 @@ int start () {
     int child_process;
     if ((child_process = fork ()) == 0) {
       
+      close (server_sock);  //  Important! This is a copy of the server socket
+                            //  that is not needed here and should be closed asap!
+      
       int exit_status = run_client_process (client_sock, &client, client_addr_len);
       printf ("Closing connection %d\n"
               "Exiting child process %d\n", client_sock, getpid ());
