@@ -60,6 +60,10 @@ int start () {
   
   subscribe_to_signals ();
   printf ("Starting main loop on main thread\n");
+  
+  client_config_t client_config;
+  client_config.address = malloc (sizeof (struct sockaddr_in));
+  
   while (!app_should_stop) {
     
     struct sockaddr_in client;
@@ -68,6 +72,7 @@ int start () {
     
     int client_sock = 0;
     if ((client_sock = accept (server_sock, (struct sockaddr *)&client, &client_addr_len)) <= 0) {
+      printf ("closing client socket");
       if (!app_should_stop) {
         perror ("Accept error");
       }
@@ -75,12 +80,11 @@ int start () {
       break;
     }
     
-    client_config_t client_config;
     client_config.socket_descriptor = client_sock;
-    memcpy (client_config.address, &client, sizeof (struct sockaddr_in));
     client_config.address_length = client_addr_len;
+    memcpy (client_config.address, &client, sizeof (struct sockaddr_in));
+
     pthread_t child_thread;
- 
     if (pthread_create (&child_thread, NULL, (void *(*)(void *))&run_client_process, &client_config) != 0) {
       perror ("Pthread error");
       close (client_sock);
@@ -89,9 +93,13 @@ int start () {
     
     printf ("Main loop is restarting on main thread\n");
   }
-
+  
+  free (client_config.address);
   close (server_sock);
-  if (!app_should_stop) { abort (); } else {
+  
+  if (!app_should_stop) {
+    abort ();
+  } else {
     printf ("\nGood Bye!\n");
     return 0;
   }
@@ -114,9 +122,13 @@ void *run_client_process (client_config_t *incoming_config) {
   
   printf ("Handling client in a separate thread\n");
   client_config_t config;
-  memcpy (&config, incoming_config, sizeof (client_config_t));  // Incoming client config is a shared resource that is
-                                                                // going to be reused on the main thread. Hence it should be
-                                                                // copied and kept till a working thread completes its work.
+  
+  /**
+   *  Incoming client config is a shared resource that is
+   *  going to be reused on the main thread. Hence it should be
+   *  copied and kept till a working thread completes its work.
+   */
+  memcpy (&config, incoming_config, sizeof (client_config_t));
   
   if (display_client_info (config.address, config.address_length) < 0) {
     perror ("Display client info error");
@@ -182,7 +194,7 @@ int handle_client (const int client_socket, const struct sockaddr_in *client_add
     char *pattern       = malloc (pattern_size);
     if (sprintf (pattern, url_path_format, file_names[i]) < 0) {
       perror ("File name pattern compiling error");
-      free (buffer.data);
+      unset_buffer (&buffer);
       free (pattern);
       return -1;
     }
@@ -191,11 +203,11 @@ int handle_client (const int client_socket, const struct sockaddr_in *client_add
     if (is_matching) {
       if (read_and_send (client_socket, index_page_f) < 0) {
         perror ("Send response error");
-        free (buffer.data);
+        unset_buffer (&buffer);
         free (pattern);
         return -1;
       }
-      free (buffer.data);
+      unset_buffer (&buffer);
       free (pattern);
       break;
     }
@@ -205,7 +217,7 @@ int handle_client (const int client_socket, const struct sockaddr_in *client_add
   if (!is_matching) {
     if (read_and_send (client_socket, not_found_page_f) < 0) {
       perror ("Send response error");
-      free (buffer.data);
+      unset_buffer (&buffer);
       return -1;
     }
   }
@@ -222,7 +234,7 @@ int send_http_response (const int socket, const char* fname) {
   
   if (get_file_content (&buffer, fname) < 0) {
     perror ("Get file content error");
-    free (buffer.data);
+    unset_buffer (&buffer);
     return -1;
   }
   
@@ -243,7 +255,7 @@ int send_http_response (const int socket, const char* fname) {
   
   if (snprintf (response, response_size, http_headers_format, buffer.used, buffer.data) < 0) {
     perror ("Response compile error");
-    free (buffer.data);
+    unset_buffer (&buffer);
     free (response);
     return -1;
   }
@@ -254,7 +266,7 @@ int send_http_response (const int socket, const char* fname) {
   do {
     if ((bytes = send (socket, response + sent, response_size - sent, 0)) < 0) {
       perror ("Send error");
-      free (buffer.data);
+      unset_buffer (&buffer);
       free (response);
       return -1;
     }
@@ -265,7 +277,7 @@ int send_http_response (const int socket, const char* fname) {
   
   printf ("File %s has been sent successfully.\n\n", fname);
   free (response);
-  free (buffer.data);
+  unset_buffer (&buffer);
   return 0;
 }
 
@@ -322,7 +334,7 @@ int read_and_send (const int socket, const char* fname) {
     if (!sending_complete && (buffer.used > 0)) {
       if ((chars_sent = send (socket, buffer.data + bytes_sent, buffer.used - bytes_sent, 0)) < 0) {
         perror ("Send error");
-        free (buffer.data);
+        unset_buffer (&buffer);
         fclose (file);
         return -1;
       }
@@ -337,7 +349,7 @@ int read_and_send (const int socket, const char* fname) {
            (sending_complete == 0));
   
   printf ("Data {\n%s\n} has been successfully sent to client %d\n", buffer.data, socket);
-  free (buffer.data);
+  unset_buffer (&buffer);
   fclose (file);
   
   return 0;
