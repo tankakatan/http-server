@@ -17,6 +17,7 @@
 
 typedef struct {
   
+  int numb;
   size_t size;
   size_t used;
   char * data;
@@ -25,6 +26,7 @@ typedef struct {
 
 
 void init_buffer (buffer_t *buffer, size_t length);
+void unset_buffer (buffer_t *buffer);
 void extend_buffer (buffer_t *buffer);
 
 

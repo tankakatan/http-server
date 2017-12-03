@@ -20,9 +20,13 @@
 #include <arpa/inet.h>
 #include <time.h>
 #include <unistd.h>
+#include <signal.h>
+#include <pthread.h>
 
 
 /*  Bind address and port, set up listener, run main loop  */
+
+int app_should_stop = 0;
 
 int start () {
   
@@ -35,13 +39,9 @@ int start () {
   
   int server_sock = socket (PF_INET, SOCK_STREAM, 0);
   
-  int reuse = 1;
-  if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) < 0) {
-    perror("setsockopt(SO_REUSEADDR) failed");
-  }
-    
 #ifdef SO_REUSEPORT
-  if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEPORT, (const char*)&reuse, sizeof(reuse)) < 0) {
+  int reuse = 1;
+  if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEPORT, (const char*)&reuse, sizeof (reuse)) < 0) {
     perror("setsockopt(SO_REUSEPORT) failed");
   }
 #endif
@@ -58,40 +58,103 @@ int start () {
     abort ();
   }
   
-  while (1) {
+  subscribe_to_signals ();
+  printf ("Starting main loop on main thread\n");
+  
+  client_config_t client_config;
+  client_config.address = malloc (sizeof (struct sockaddr_in));
+  
+  while (!app_should_stop) {
     
     struct sockaddr_in client;
     socklen_t client_addr_len = sizeof (struct sockaddr_in);
     bzero (&client, sizeof (client));
     
-    int client_sock = accept (server_sock, (struct sockaddr *)&client, &client_addr_len);
-    if (client_sock <= 0) {
-      perror ("Accept error");
+    int client_sock = 0;
+    if ((client_sock = accept (server_sock, (struct sockaddr *)&client, &client_addr_len)) <= 0) {
+      printf ("closing client socket");
+      if (!app_should_stop) {
+        perror ("Accept error");
+      }
       close (client_sock);
-      close (server_sock);
-      abort ();
+      break;
     }
     
-    if (display_client_info (&client, client_addr_len) < 0) {
-      perror ("Display client info error");
-      close (client_sock);
-      close (server_sock);
-      abort ();
-    }
-    
-    if (handle_client (client_sock, &client, client_addr_len) < 0) {
-      perror ("Handle client error");
-      close (client_sock);
-      close (server_sock);
-      abort ();
-    }
-    
-    close (client_sock);
-//    break;
-  }
+    client_config.socket_descriptor = client_sock;
+    client_config.address_length = client_addr_len;
+    memcpy (client_config.address, &client, sizeof (struct sockaddr_in));
 
+    pthread_t child_thread;
+    if (pthread_create (&child_thread, NULL, (void *(*)(void *))&run_client_process, &client_config) != 0) {
+      perror ("Pthread error");
+      close (client_sock);
+      break;
+    }
+    
+    printf ("Main loop is restarting on main thread\n");
+  }
+  
+  free (client_config.address);
   close (server_sock);
-  return 0;
+  
+  if (!app_should_stop) {
+    abort ();
+  } else {
+    printf ("\nGood Bye!\n");
+    return 0;
+  }
+}
+
+
+/*  Subscribe to system signals   */
+
+void subscribe_to_signals () {
+  struct sigaction interruption_handler;
+  memset (&interruption_handler, 0, sizeof (struct sigaction));
+  interruption_handler.sa_handler = &on_app_interrupted;
+  sigaction (SIGINT, &interruption_handler, 0);
+}
+
+
+/*  Run client handling process   */
+
+void *run_client_process (client_config_t *incoming_config) {
+  
+  printf ("Handling client in a separate thread\n");
+  client_config_t config;
+  
+  /**
+   *  Incoming client config is a shared resource that is
+   *  going to be reused on the main thread. Hence it should be
+   *  copied and kept till a working thread completes its work.
+   */
+  memcpy (&config, incoming_config, sizeof (client_config_t));
+  
+  if (display_client_info (config.address, config.address_length) < 0) {
+    perror ("Display client info error");
+    return NULL;
+  }
+  
+  if (handle_client (config.socket_descriptor, config.address, config.address_length) < 0) {
+    perror ("Handle client error");
+    return NULL;
+  }
+  
+  close (config.socket_descriptor);
+  printf("The client was successfully handled\n");
+  return NULL;
+}
+
+
+/*  Handle system signals  */
+
+void on_app_interrupted (int signal) {
+  if (signal != SIGINT) {
+    printf ("Incorrect signal %d received at on_app_interrupted\n\n", signal);
+    return;
+  }
+  
+  app_should_stop = 1;
 }
 
 
@@ -131,7 +194,7 @@ int handle_client (const int client_socket, const struct sockaddr_in *client_add
     char *pattern       = malloc (pattern_size);
     if (sprintf (pattern, url_path_format, file_names[i]) < 0) {
       perror ("File name pattern compiling error");
-      free (buffer.data);
+      unset_buffer (&buffer);
       free (pattern);
       return -1;
     }
@@ -140,11 +203,11 @@ int handle_client (const int client_socket, const struct sockaddr_in *client_add
     if (is_matching) {
       if (read_and_send (client_socket, index_page_f) < 0) {
         perror ("Send response error");
-        free (buffer.data);
+        unset_buffer (&buffer);
         free (pattern);
         return -1;
       }
-      free (buffer.data);
+      unset_buffer (&buffer);
       free (pattern);
       break;
     }
@@ -154,7 +217,7 @@ int handle_client (const int client_socket, const struct sockaddr_in *client_add
   if (!is_matching) {
     if (read_and_send (client_socket, not_found_page_f) < 0) {
       perror ("Send response error");
-      free (buffer.data);
+      unset_buffer (&buffer);
       return -1;
     }
   }
@@ -171,7 +234,7 @@ int send_http_response (const int socket, const char* fname) {
   
   if (get_file_content (&buffer, fname) < 0) {
     perror ("Get file content error");
-    free (buffer.data);
+    unset_buffer (&buffer);
     return -1;
   }
   
@@ -192,7 +255,7 @@ int send_http_response (const int socket, const char* fname) {
   
   if (snprintf (response, response_size, http_headers_format, buffer.used, buffer.data) < 0) {
     perror ("Response compile error");
-    free (buffer.data);
+    unset_buffer (&buffer);
     free (response);
     return -1;
   }
@@ -203,7 +266,7 @@ int send_http_response (const int socket, const char* fname) {
   do {
     if ((bytes = send (socket, response + sent, response_size - sent, 0)) < 0) {
       perror ("Send error");
-      free (buffer.data);
+      unset_buffer (&buffer);
       free (response);
       return -1;
     }
@@ -214,7 +277,7 @@ int send_http_response (const int socket, const char* fname) {
   
   printf ("File %s has been sent successfully.\n\n", fname);
   free (response);
-  free (buffer.data);
+  unset_buffer (&buffer);
   return 0;
 }
 
@@ -263,7 +326,7 @@ int read_and_send (const int socket, const char* fname) {
       bytes_read  = fread (cursor, sizeof (char), chars_read, file);
       
       if (bytes_read <= 0) { reading_complete = 1; } else {
-        printf ("Data read: *cursor: %s, chars: %lu, read: %lu\n\n", cursor, chars_read, bytes_read);
+//        printf ("Data read: *cursor: %s, chars: %lu, read: %lu\n\n", cursor, chars_read, bytes_read);
         buffer.used += bytes_read;
       }
     }
@@ -271,21 +334,22 @@ int read_and_send (const int socket, const char* fname) {
     if (!sending_complete && (buffer.used > 0)) {
       if ((chars_sent = send (socket, buffer.data + bytes_sent, buffer.used - bytes_sent, 0)) < 0) {
         perror ("Send error");
-        free (buffer.data);
+        unset_buffer (&buffer);
         fclose (file);
         return -1;
       }
       if (chars_sent == 0) { sending_complete = 1; } else {
         bytes_sent += chars_sent;
-        printf ("Data sent: *cursor: %s, fraction: %lu, total: %lu\n\n",
-                buffer.data + bytes_sent - chars_sent, chars_sent, bytes_sent);
+//        printf ("Data sent: *cursor: %s, fraction: %lu, total: %lu\n\n",
+//                buffer.data + bytes_sent - chars_sent, chars_sent, bytes_sent);
       }
     }
     
   } while ((reading_complete == 0) &&
            (sending_complete == 0));
   
-  free (buffer.data);
+  printf ("Data {\n%s\n} has been successfully sent to client %d\n", buffer.data, socket);
+  unset_buffer (&buffer);
   fclose (file);
   
   return 0;
@@ -300,11 +364,11 @@ int display_client_info (const struct sockaddr_in *client, const socklen_t clien
   if (client_addr_length == sizeof (struct sockaddr_in)) {
     char *client_address  = inet_ntoa (client->sin_addr);
     int client_port       = ntohs (client->sin_port);
-    printf ("%sDetected connection with %s:%d\n\n", timestring, client_address, client_port);
+    printf ("%sDetected request from %s:%d\n\n", timestring, client_address, client_port);
 //    free (client_address);
 
   } else {
-    printf ("%sDetected connection with undefined client address length %d"
+    printf ("%sDetected request from undefined client address length %d"
             "(should be %lu)\n\n", timestring, client_addr_length, sizeof (struct sockaddr_in));
   }
 
